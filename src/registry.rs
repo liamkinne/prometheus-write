@@ -111,13 +111,8 @@ impl Registry {
                 });
             }
         } else {
-            self.gauges.insert(
-                key,
-                vec![types::Sample {
-                    timestamp,
-                    value,
-                }],
-            );
+            self.gauges
+                .insert(key, vec![types::Sample { timestamp, value }]);
         }
     }
 
@@ -137,19 +132,11 @@ impl Registry {
             if old.timestamp == timestamp {
                 old.value = value;
             } else {
-                samples.push(types::Sample {
-                    timestamp,
-                    value,
-                });
+                samples.push(types::Sample { timestamp, value });
             }
         } else {
-            self.gauges.insert(
-                key,
-                vec![types::Sample {
-                    timestamp,
-                    value,
-                }],
-            );
+            self.gauges
+                .insert(key, vec![types::Sample { timestamp, value }]);
         }
     }
 
