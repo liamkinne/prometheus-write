@@ -1,3 +1,5 @@
+#![doc = include_str!("../README.md")]
+
 mod types {
     include!(concat!(env!("OUT_DIR"), "/prometheus.rs"));
 }
