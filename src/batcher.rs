@@ -28,14 +28,24 @@ pub enum Command {
 /// Builder for the [`Batcher`].
 #[derive(Debug, Clone)]
 pub struct Builder {
+    endpoint: String,
     tick_interval: Duration,
 }
 
 impl Builder {
     pub fn new() -> Self {
         Self {
+            endpoint: "http://localhost:9090/api/v1/write".to_owned(),
             tick_interval: Duration::from_millis(100),
         }
+    }
+
+    /// Prometheus Endpoint URI
+    ///
+    /// Default is `http://localhost:9090/api/v1/write`.
+    pub fn endpoint(mut self, uri: impl Into<String>) -> Self {
+        self.endpoint = uri.into();
+        self
     }
 
     /// Change the interval between batch writes.
@@ -50,7 +60,7 @@ impl Builder {
     pub fn install(self) -> Result<(), SetRecorderError<Batcher>> {
         let (tx_cmds, rx_cmd) = crossbeam::channel::unbounded();
 
-        std::thread::spawn(move || batch_worker(rx_cmd, self.tick_interval));
+        std::thread::spawn(move || batch_worker(rx_cmd, self.endpoint, self.tick_interval));
 
         metrics::set_global_recorder(Batcher {
             inner: Arc::new(BatcherInner { tx_cmds }),
@@ -173,11 +183,11 @@ impl BatcherInner {
     }
 }
 
-fn batch_worker(rx_cmd: Receiver<Command>, interval: Duration) {
+fn batch_worker(rx_cmd: Receiver<Command>, endpoint: String, interval: Duration) {
     let rx_tick = crossbeam::channel::tick(interval);
     let mut registry = Registry::new();
 
-    fn write(registry: &mut Registry) {
+    fn write(registry: &mut Registry, endpoint: &str) {
         let mut timeseries = vec![];
 
         for (key, samples) in &registry.counters {
@@ -235,7 +245,7 @@ fn batch_worker(rx_cmd: Receiver<Command>, interval: Duration) {
                 }
             };
 
-        let mut response = match ureq::post("http://localhost:9090/api/v1/write")
+        let mut response = match ureq::post(endpoint)
             .config()
             .timeout_global(Some(Duration::from_millis(100)))
             .build()
@@ -291,7 +301,7 @@ fn batch_worker(rx_cmd: Receiver<Command>, interval: Duration) {
                 } };
             },
             recv(rx_tick) -> _ => {
-                write(&mut registry);
+                write(&mut registry, &endpoint);
             },
         }
     }
