@@ -25,11 +25,13 @@ pub enum Command {
     Operation(SystemTime, Key, MetricOperation),
 }
 
-pub struct BatcherBuilder {
+/// Builder for the [`Batcher`].
+#[derive(Debug, Clone)]
+pub struct Builder {
     tick_interval: Duration,
 }
 
-impl BatcherBuilder {
+impl Builder {
     pub fn new() -> Self {
         Self {
             tick_interval: Duration::from_millis(100),
@@ -56,12 +58,13 @@ impl BatcherBuilder {
     }
 }
 
-impl Default for BatcherBuilder {
+impl Default for Builder {
     fn default() -> Self {
         Self::new()
     }
 }
 
+/// Batch sample sender.
 pub struct Batcher {
     inner: Arc<BatcherInner>,
 }

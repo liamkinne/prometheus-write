@@ -4,4 +4,4 @@ mod types {
 mod batcher;
 mod registry;
 
-pub use batcher::{Batcher, BatcherBuilder, Command, MetricOperation};
+pub use batcher::Builder;

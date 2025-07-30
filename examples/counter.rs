@@ -1,11 +1,11 @@
 use metrics::counter;
-use metrics_exporter_prometheus_write::BatcherBuilder;
+use metrics_exporter_prometheus_write::Builder;
 use std::{thread::sleep, time::Duration};
 
 fn main() {
     tracing_subscriber::fmt::init();
 
-    BatcherBuilder::new()
+    Builder::new()
         .tick_interval(Duration::from_millis(200))
         .install()
         .unwrap();
