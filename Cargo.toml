@@ -1,0 +1,18 @@
+[package]
+name = "metrics-exporter-prometheus-write"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+crossbeam = "0.8.4"
+log = "0.4.27"
+metrics = "0.24.2"
+prost = "0.13.5"
+snap = "1.1.1"
+ureq = "3.0.11"
+
+[build-dependencies]
+prost-build = "0.13.5"
+
+[dev-dependencies]
+tracing-subscriber = "0.3.19"
