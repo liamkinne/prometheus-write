@@ -1,5 +1,3 @@
-use std::io::Result;
-
-fn main() -> Result<()> {
+fn main() -> std::io::Result<()> {
     prost_build::compile_protos(&["./prometheus.proto"], &["./"])
 }
