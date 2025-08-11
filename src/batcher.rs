@@ -245,7 +245,7 @@ fn batch_worker(rx_cmd: Receiver<Command>, endpoint: String, interval: Duration)
                 }
             };
 
-        let mut response = match ureq::post(endpoint)
+        match ureq::post(endpoint)
             .config()
             .timeout_global(Some(Duration::from_millis(100)))
             .build()
@@ -255,26 +255,26 @@ fn batch_worker(rx_cmd: Receiver<Command>, endpoint: String, interval: Duration)
             .header("X-Prometheus-Remote-Write-Version", "1.0.0")
             .send(&compressed)
         {
-            Ok(r) => r,
+            Ok(mut response) => {
+                if response.status().is_client_error() {
+                    log::error!(
+                        "Prometheus returned a client error: {:?}",
+                        response.body_mut().read_to_string()
+                    );
+                }
+
+                if response.status().is_server_error() {
+                    log::error!(
+                        "Prometheus returned a server error: {:?}",
+                        response.body_mut().read_to_string()
+                    );
+                }
+            }
             Err(err) => {
                 log::error!("Request failed: {:?}", err);
                 return;
             }
         };
-
-        if response.status().is_client_error() {
-            log::error!(
-                "Prometheus returned a client error: {:?}",
-                response.body_mut().read_to_string()
-            );
-        }
-
-        if response.status().is_server_error() {
-            log::error!(
-                "Prometheus returned a server error: {:?}",
-                response.body_mut().read_to_string()
-            );
-        }
 
         registry.clear();
     }
