@@ -77,7 +77,11 @@ impl Registry {
             let old = samples.last_mut().unwrap();
 
             if old.timestamp == timestamp {
-                // first sample wins
+                log::trace!(
+                    "Duplicate sample for timestamp series: \"{}\", timestamp: {}",
+                    key.name(),
+                    timestamp
+                );
             } else {
                 samples.push(types::Sample {
                     timestamp,
@@ -134,7 +138,11 @@ impl Registry {
             let old = samples.last_mut().unwrap();
 
             if old.timestamp == timestamp {
-                // first sample wins
+                log::trace!(
+                    "Duplicate sample for timestamp series: \"{}\", timestamp: {}",
+                    key.name(),
+                    timestamp
+                );
             } else {
                 samples.push(types::Sample { timestamp, value });
             }
