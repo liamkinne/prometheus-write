@@ -47,6 +47,8 @@ impl Registry {
             let old = samples.last_mut().unwrap();
 
             if old.timestamp == timestamp {
+                // we shouldn't overwite samples, but if we don't do this we loose
+                // the increment
                 old.value += value as f64;
             } else {
                 let old = old.value;
@@ -75,7 +77,7 @@ impl Registry {
             let old = samples.last_mut().unwrap();
 
             if old.timestamp == timestamp {
-                old.value = value as f64;
+                // first sample wins
             } else {
                 samples.push(types::Sample {
                     timestamp,
@@ -102,6 +104,8 @@ impl Registry {
             let old = samples.last_mut().unwrap();
 
             if old.timestamp == timestamp {
+                // we shouldn't overwite samples, but if we don't do this we loose
+                // the increment
                 old.value += value;
             } else {
                 let old = old.value;
@@ -130,7 +134,7 @@ impl Registry {
             let old = samples.last_mut().unwrap();
 
             if old.timestamp == timestamp {
-                old.value = value;
+                // first sample wins
             } else {
                 samples.push(types::Sample { timestamp, value });
             }
