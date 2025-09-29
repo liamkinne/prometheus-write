@@ -247,6 +247,7 @@ fn batch_worker(rx_cmd: Receiver<Command>, endpoint: String, interval: Duration)
 
         match ureq::post(endpoint)
             .config()
+            .http_status_as_error(false)
             .timeout_global(Some(Duration::from_millis(100)))
             .build()
             .content_type("application/x-protobuf")
