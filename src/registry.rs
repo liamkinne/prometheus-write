@@ -78,7 +78,7 @@ impl Samples {
     pub fn sent(&mut self) {
         self.sent = true;
 
-        let last = self.samples.last().map(|s| s.clone());
+        let last = self.samples.last().copied();
         self.samples.clear();
         if let Some(last) = last {
             self.samples.push(last);

@@ -240,7 +240,7 @@ fn batch_worker(rx_cmd: Receiver<Command>, endpoint: String, interval: Duration)
             match snap::raw::Encoder::new().compress_vec(&write_request.encode_to_vec()) {
                 Ok(c) => c,
                 Err(err) => {
-                    log::error!("Compression failed: {:?}", err);
+                    log::error!("Compression failed: {err:?}");
                     return;
                 }
             };
@@ -272,7 +272,7 @@ fn batch_worker(rx_cmd: Receiver<Command>, endpoint: String, interval: Duration)
                 }
             }
             Err(err) => {
-                log::error!("Request failed: {:?}", err);
+                log::error!("Request failed: {err:?}");
             }
         };
 
