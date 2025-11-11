@@ -6,4 +6,5 @@ mod types {
 mod batcher;
 mod registry;
 
+pub use batcher::Batcher;
 pub use batcher::Builder;

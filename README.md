@@ -8,13 +8,12 @@ the usual quantization dictated by the scrape interval.
 ## Getting Started
 
 ```rust
-use metrics_exporter_prometheus_write::Builder;
+use metrics_exporter_prometheus_write::Batcher;
 use metrics::counter;
 
-fn main() {
-    Builder::new()
-        .install()
-        .unwrap();
+Batcher::builder()
+    .install()
+    .unwrap();
 
     counter!("example").increment(1);
 }

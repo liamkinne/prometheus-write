@@ -80,6 +80,10 @@ pub struct Batcher {
 }
 
 impl Batcher {
+    pub fn builder() -> Builder {
+        Builder::new()
+    }
+
     /// Send a command to the worker thread.
     pub fn send(&self, command: Command) {
         self.inner.send(command);
