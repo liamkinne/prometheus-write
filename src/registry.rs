@@ -53,8 +53,6 @@ impl Samples {
     /// Set the new or next sample.
     pub fn set(&mut self, sample: types::Sample) {
         if let Some(last) = self.samples.last_mut() {
-            let current = last.value;
-
             if last.timestamp == sample.timestamp {
                 // assign new value
                 last.value = sample.value
@@ -65,7 +63,7 @@ impl Samples {
                 }
 
                 self.samples.push(types::Sample {
-                    value: sample.value + current,
+                    value: sample.value,
                     timestamp: sample.timestamp,
                 });
                 self.sent = false;
