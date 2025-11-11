@@ -10,11 +10,12 @@ the usual quantization dictated by the scrape interval.
 ```rust
 use metrics_exporter_prometheus_write::Batcher;
 use metrics::counter;
+use metrics::gauge;
 
 Batcher::builder()
     .install()
     .unwrap();
 
-    counter!("example").increment(1);
-}
+counter!("my_counter").increment(1);
+gauge!("my_gauge").set(45.0);
 ```
