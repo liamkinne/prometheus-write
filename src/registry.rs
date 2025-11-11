@@ -5,9 +5,92 @@ use std::{
     time::{SystemTime, UNIX_EPOCH},
 };
 
+#[derive(Debug)]
+pub struct Samples {
+    sent: bool,
+    samples: Vec<types::Sample>,
+}
+
+impl Samples {
+    /// Create a new sample stream.
+    pub fn new(sample: types::Sample) -> Self {
+        Self {
+            sent: false,
+            samples: vec![sample],
+        }
+    }
+
+    pub fn all(&self) -> &Vec<types::Sample> {
+        &self.samples
+    }
+
+    /// Increment, adding to the previous value.
+    pub fn increment(&mut self, sample: types::Sample) {
+        if let Some(last) = self.samples.last_mut() {
+            let current = last.value;
+
+            if last.timestamp == sample.timestamp {
+                // increment old value
+                last.value += sample.value;
+            } else {
+                // the existing sample has already been sent
+                if self.sent {
+                    self.samples.clear();
+                }
+
+                self.samples.push(types::Sample {
+                    value: sample.value + current,
+                    timestamp: sample.timestamp,
+                });
+                self.sent = false;
+            }
+        } else {
+            self.sent = false;
+            self.samples.push(sample);
+        }
+    }
+
+    /// Set the new or next sample.
+    pub fn set(&mut self, sample: types::Sample) {
+        if let Some(last) = self.samples.last_mut() {
+            let current = last.value;
+
+            if last.timestamp == sample.timestamp {
+                // assign new value
+                last.value = sample.value
+            } else {
+                // the existing sample has already been sent
+                if self.sent {
+                    self.samples.clear();
+                }
+
+                self.samples.push(types::Sample {
+                    value: sample.value + current,
+                    timestamp: sample.timestamp,
+                });
+                self.sent = false;
+            }
+        } else {
+            self.sent = false;
+            self.samples.push(sample);
+        }
+    }
+
+    /// Remove all elements except the last.
+    pub fn sent(&mut self) {
+        self.sent = true;
+
+        let last = self.samples.last().map(|s| s.clone());
+        self.samples.clear();
+        if let Some(last) = last {
+            self.samples.push(last);
+        }
+    }
+}
+
 pub struct Registry {
-    pub counters: BTreeMap<Key, Vec<types::Sample>>,
-    pub gauges: BTreeMap<Key, Vec<types::Sample>>,
+    pub counters: BTreeMap<Key, Samples>,
+    pub gauges: BTreeMap<Key, Samples>,
 }
 
 impl Registry {
@@ -18,109 +101,56 @@ impl Registry {
         }
     }
 
-    /// Clears all of the registry contents.
-    pub fn clear(&mut self) {
-        // only keep the latest counter for each key
+    /// Mark samples as sent.
+    pub fn sent(&mut self) {
         for samples in self.counters.values_mut() {
-            if let Some(sample) = samples.last() {
-                let sample = sample.to_owned();
-                samples.clear();
-                samples.push(sample);
-            }
+            samples.sent();
         }
 
         for samples in self.gauges.values_mut() {
-            if let Some(sample) = samples.last() {
-                let sample = sample.to_owned();
-                samples.clear();
-                samples.push(sample);
-            }
+            samples.sent();
         }
     }
 
     /// Increment a counter, adding the given value to the last value.
     pub fn counter_increment(&mut self, timestamp: SystemTime, key: Key, value: u64) {
-        let timestamp = self.timestamp_millis(timestamp);
+        let sample = types::Sample {
+            timestamp: self.timestamp_millis(timestamp),
+            value: value as f64,
+        };
 
-        if self.counters.contains_key(&key) {
-            let samples = self.counters.get_mut(&key).unwrap();
-            let old = samples.last_mut().unwrap();
-
-            if old.timestamp == timestamp {
-                // we shouldn't overwite samples, but if we don't do this we loose
-                // the increment
-                old.value += value as f64;
-            } else {
-                let old = old.value;
-                samples.push(types::Sample {
-                    timestamp,
-                    value: old + value as f64,
-                });
-            }
+        if let Some(samples) = self.counters.get_mut(&key) {
+            samples.increment(sample);
         } else {
-            self.counters.insert(
-                key,
-                vec![types::Sample {
-                    timestamp,
-                    value: value as f64,
-                }],
-            );
+            self.counters.insert(key, Samples::new(sample));
         }
     }
 
     /// Set the absolute value of a counter.
     pub fn counter_set(&mut self, timestamp: SystemTime, key: Key, value: u64) {
-        let timestamp = self.timestamp_millis(timestamp);
+        let sample = types::Sample {
+            timestamp: self.timestamp_millis(timestamp),
+            value: value as f64,
+        };
 
-        if self.counters.contains_key(&key) {
-            let samples = self.counters.get_mut(&key).unwrap();
-            let old = samples.last_mut().unwrap();
-
-            if old.timestamp == timestamp {
-                log::trace!(
-                    "Duplicate sample for timestamp series: \"{}\", timestamp: {}",
-                    key.name(),
-                    timestamp
-                );
-            } else {
-                samples.push(types::Sample {
-                    timestamp,
-                    value: value as f64,
-                });
-            }
+        if let Some(samples) = self.counters.get_mut(&key) {
+            samples.set(sample);
         } else {
-            self.counters.insert(
-                key,
-                vec![types::Sample {
-                    timestamp,
-                    value: value as f64,
-                }],
-            );
+            self.counters.insert(key, Samples::new(sample));
         }
     }
 
     /// Increment a guage, adding the new value to the last value.
     pub fn gauge_increment(&mut self, timestamp: SystemTime, key: Key, value: f64) {
-        let timestamp = self.timestamp_millis(timestamp);
+        let sample = types::Sample {
+            timestamp: self.timestamp_millis(timestamp),
+            value,
+        };
 
-        if self.gauges.contains_key(&key) {
-            let samples = self.gauges.get_mut(&key).unwrap();
-            let old = samples.last_mut().unwrap();
-
-            if old.timestamp == timestamp {
-                // we shouldn't overwite samples, but if we don't do this we loose
-                // the increment
-                old.value += value;
-            } else {
-                let old = old.value;
-                samples.push(types::Sample {
-                    timestamp,
-                    value: old + value,
-                });
-            }
+        if let Some(samples) = self.gauges.get_mut(&key) {
+            samples.increment(sample);
         } else {
-            self.gauges
-                .insert(key, vec![types::Sample { timestamp, value }]);
+            self.gauges.insert(key, Samples::new(sample));
         }
     }
 
@@ -131,24 +161,15 @@ impl Registry {
 
     /// Set the absolute value of a gauge.
     pub fn gauge_set(&mut self, timestamp: SystemTime, key: Key, value: f64) {
-        let timestamp = self.timestamp_millis(timestamp);
+        let sample = types::Sample {
+            timestamp: self.timestamp_millis(timestamp),
+            value,
+        };
 
-        if self.gauges.contains_key(&key) {
-            let samples = self.gauges.get_mut(&key).unwrap();
-            let old = samples.last_mut().unwrap();
-
-            if old.timestamp == timestamp {
-                log::trace!(
-                    "Duplicate sample for timestamp series: \"{}\", timestamp: {}",
-                    key.name(),
-                    timestamp
-                );
-            } else {
-                samples.push(types::Sample { timestamp, value });
-            }
+        if let Some(samples) = self.gauges.get_mut(&key) {
+            samples.set(sample);
         } else {
-            self.gauges
-                .insert(key, vec![types::Sample { timestamp, value }]);
+            self.gauges.insert(key, Samples::new(sample));
         }
     }
 

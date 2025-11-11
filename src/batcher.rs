@@ -205,7 +205,7 @@ fn batch_worker(rx_cmd: Receiver<Command>, endpoint: String, interval: Duration)
 
             timeseries.push(types::TimeSeries {
                 labels,
-                samples: samples.clone(),
+                samples: samples.all().clone(),
                 exemplars: vec![],
             })
         }
@@ -225,7 +225,7 @@ fn batch_worker(rx_cmd: Receiver<Command>, endpoint: String, interval: Duration)
 
             timeseries.push(types::TimeSeries {
                 labels,
-                samples: samples.clone(),
+                samples: samples.all().clone(),
                 exemplars: vec![],
             })
         }
@@ -273,11 +273,10 @@ fn batch_worker(rx_cmd: Receiver<Command>, endpoint: String, interval: Duration)
             }
             Err(err) => {
                 log::error!("Request failed: {:?}", err);
-                return;
             }
         };
 
-        registry.clear();
+        registry.sent();
     }
 
     loop {
