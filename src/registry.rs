@@ -113,7 +113,7 @@ impl Registry {
     /// Increment a counter, adding the given value to the last value.
     pub fn counter_increment(&mut self, timestamp: SystemTime, key: Key, value: u64) {
         let sample = types::Sample {
-            timestamp: self.timestamp_millis(timestamp),
+            timestamp: timestamp_millis(timestamp),
             value: value as f64,
         };
 
@@ -127,7 +127,7 @@ impl Registry {
     /// Set the absolute value of a counter.
     pub fn counter_set(&mut self, timestamp: SystemTime, key: Key, value: u64) {
         let sample = types::Sample {
-            timestamp: self.timestamp_millis(timestamp),
+            timestamp: timestamp_millis(timestamp),
             value: value as f64,
         };
 
@@ -141,7 +141,7 @@ impl Registry {
     /// Increment a guage, adding the new value to the last value.
     pub fn gauge_increment(&mut self, timestamp: SystemTime, key: Key, value: f64) {
         let sample = types::Sample {
-            timestamp: self.timestamp_millis(timestamp),
+            timestamp: timestamp_millis(timestamp),
             value,
         };
 
@@ -160,7 +160,7 @@ impl Registry {
     /// Set the absolute value of a gauge.
     pub fn gauge_set(&mut self, timestamp: SystemTime, key: Key, value: f64) {
         let sample = types::Sample {
-            timestamp: self.timestamp_millis(timestamp),
+            timestamp: timestamp_millis(timestamp),
             value,
         };
 
@@ -170,9 +170,12 @@ impl Registry {
             self.gauges.insert(key, Samples::new(sample));
         }
     }
+}
 
-    fn timestamp_millis(&self, timestamp: SystemTime) -> i64 {
-        // todo: dont use SystemTime as we can't then set custom timestamps.
-        timestamp.duration_since(UNIX_EPOCH).unwrap().as_millis() as i64
+fn timestamp_millis(timestamp: SystemTime) -> i64 {
+    // todo: dont use SystemTime as we can't then set custom timestamps.
+    timestamp.duration_since(UNIX_EPOCH).unwrap().as_millis() as i64
+}
+
     }
 }
