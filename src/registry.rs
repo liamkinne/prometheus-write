@@ -29,7 +29,7 @@ impl Samples {
         if let Some(last) = self.samples.last_mut() {
             let current = last.value;
 
-            if last.timestamp == sample.timestamp {
+            if sample.timestamp <= last.timestamp {
                 // increment old value
                 last.value += sample.value;
             } else {
@@ -53,10 +53,10 @@ impl Samples {
     /// Set the new or next sample.
     pub fn set(&mut self, sample: types::Sample) {
         if let Some(last) = self.samples.last_mut() {
-            if last.timestamp == sample.timestamp {
+            if sample.timestamp == last.timestamp {
                 // assign new value
                 last.value = sample.value
-            } else {
+            } else if sample.timestamp > last.timestamp {
                 // the existing sample has already been sent
                 if self.sent {
                     self.samples.clear();
@@ -177,5 +177,78 @@ fn timestamp_millis(timestamp: SystemTime) -> i64 {
     timestamp.duration_since(UNIX_EPOCH).unwrap().as_millis() as i64
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn sample_duplicate() {
+        let mut samples = Samples::new(types::Sample {
+            value: 1.0,
+            timestamp: 100,
+        });
+        assert_eq!(samples.all().len(), 1);
+        assert_eq!(samples.all()[0].value, 1.0);
+
+        samples.increment(types::Sample {
+            value: 1.0,
+            timestamp: 200,
+        });
+        assert_eq!(samples.all().len(), 2);
+        assert_eq!(samples.all()[1].value, 2.0);
+
+        // this should overwrite the last value given it has the same timestamp.
+        samples.set(types::Sample {
+            value: 10.0,
+            timestamp: 200,
+        });
+        assert_eq!(samples.all().len(), 2);
+        assert_eq!(samples.all()[1].value, 10.0);
+    }
+
+    #[test]
+    fn sample_set_out_of_order() {
+        let mut samples = Samples::new(types::Sample {
+            value: 1.0,
+            timestamp: 100,
+        });
+
+        samples.set(types::Sample {
+            value: 2.0,
+            timestamp: 200,
+        });
+        assert_eq!(samples.all()[1].value, 2.0);
+        assert_eq!(samples.all()[1].timestamp, 200);
+
+        // samples older than the latest sample should be ignored
+        samples.set(types::Sample {
+            value: 3.0,
+            timestamp: 100,
+        });
+        assert_eq!(samples.all()[1].value, 2.0);
+        assert_eq!(samples.all()[1].timestamp, 200);
+    }
+
+    #[test]
+    fn sample_increment_out_of_order() {
+        let mut samples = Samples::new(types::Sample {
+            value: 1.0,
+            timestamp: 100,
+        });
+
+        samples.increment(types::Sample {
+            value: 1.0,
+            timestamp: 200,
+        });
+        assert_eq!(samples.all()[1].value, 2.0);
+        assert_eq!(samples.all()[1].timestamp, 200);
+
+        // old samples should be ignored but the total will still be incremented
+        samples.increment(types::Sample {
+            value: 1.0,
+            timestamp: 100,
+        });
+        assert_eq!(samples.all()[1].value, 3.0);
+        assert_eq!(samples.all()[1].timestamp, 200);
     }
 }
