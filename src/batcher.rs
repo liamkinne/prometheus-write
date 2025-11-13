@@ -183,7 +183,9 @@ struct BatcherInner {
 impl BatcherInner {
     /// Send a command to the worker thread.
     pub fn send(&self, command: Command) {
-        self.tx_cmds.send(command).ok();
+        if let Err(err) = self.tx_cmds.send(command) {
+            log::error!("Failed to send: {}", err);
+        }
     }
 }
 
