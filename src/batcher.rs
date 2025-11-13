@@ -195,6 +195,11 @@ fn batch_worker(rx_cmd: Receiver<Command>, endpoint: String, interval: Duration)
         let mut timeseries = vec![];
 
         for (key, samples) in &registry.counters {
+            // skip if this metric has already been sent
+            if samples.is_sent() {
+                continue;
+            }
+
             let mut labels = vec![types::Label {
                 name: "__name__".to_owned(),
                 value: key.name().to_owned(),
@@ -215,6 +220,11 @@ fn batch_worker(rx_cmd: Receiver<Command>, endpoint: String, interval: Duration)
         }
 
         for (key, samples) in &registry.gauges {
+            // skip if this metric has already been sent
+            if samples.is_sent() {
+                continue;
+            }
+
             let mut labels = vec![types::Label {
                 name: "__name__".to_owned(),
                 value: key.name().to_owned(),

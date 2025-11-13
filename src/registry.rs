@@ -74,6 +74,11 @@ impl Samples {
         }
     }
 
+    /// Has this sample been sent already.
+    pub fn is_sent(&self) -> bool {
+        self.sent
+    }
+
     /// Remove all elements except the last.
     pub fn sent(&mut self) {
         self.sent = true;
