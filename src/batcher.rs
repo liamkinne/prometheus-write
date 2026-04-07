@@ -286,13 +286,15 @@ fn batch_worker(rx_cmd: Receiver<Command>, endpoint: String, interval: Duration)
                         response.body_mut().read_to_string()
                     );
                 }
+
+                if response.status().is_success() {
+                    registry.sent();
+                }
             }
             Err(err) => {
                 log::error!("Request failed: {err:?}");
             }
         };
-
-        registry.sent();
     }
 
     loop {
