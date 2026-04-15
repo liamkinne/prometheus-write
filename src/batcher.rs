@@ -300,23 +300,31 @@ fn batch_worker(rx_cmd: Receiver<Command>, endpoint: String, interval: Duration)
     loop {
         select! {
             recv(rx_cmd) -> cmd => {
-                if let Ok(Command::Operation(timestamp, key, op)) = cmd { match op {
-                    MetricOperation::IncrementCounter(value) => {
-                        registry.counter_increment(timestamp, key, value);
+                match cmd {
+                    Ok(Command::Operation(timestamp, key, op)) => match op {
+                        MetricOperation::IncrementCounter(value) => {
+                            registry.counter_increment(timestamp, key, value);
+                        },
+                        MetricOperation::SetCounter(value) => {
+                            registry.counter_set(timestamp, key, value);
+                        },
+                        MetricOperation::IncrementGauge(value) => {
+                            registry.gauge_increment(timestamp, key, value);
+                        },
+                        MetricOperation::DecrementGauge(value) => {
+                            registry.gauge_decrement(timestamp, key, value);
+                        },
+                        MetricOperation::SetGauge(value) => {
+                            registry.gauge_set(timestamp, key, value);
+                        },
+                    }
+                    Ok(Command::Metadata(_, _, _, _)) => {
+                        log::debug!("metadata not yet implemented");
                     },
-                    MetricOperation::SetCounter(value) => {
-                        registry.counter_set(timestamp, key, value);
+                    Err(err) => {
+                        log::error!("{}", err);
                     },
-                    MetricOperation::IncrementGauge(value) => {
-                        registry.gauge_increment(timestamp, key, value);
-                    },
-                    MetricOperation::DecrementGauge(value) => {
-                        registry.gauge_decrement(timestamp, key, value);
-                    },
-                    MetricOperation::SetGauge(value) => {
-                        registry.gauge_set(timestamp, key, value);
-                    },
-                } };
+                };
             },
             recv(rx_tick) -> _ => {
                 write(&mut registry, &endpoint);
