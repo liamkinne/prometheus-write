@@ -14,8 +14,10 @@ fn main() {
 
     println!("Start sending samples.");
 
-    loop {
+    for _ in 0..100 {
         counter!("example").increment(1);
         sleep(Duration::from_millis(100));
     }
+
+    println!("Done sending samples.");
 }

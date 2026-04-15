@@ -18,7 +18,7 @@ fn main() {
 
     println!("Start sending samples.");
 
-    loop {
+    for _ in 0..100 {
         let seconds = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .unwrap()
@@ -26,4 +26,6 @@ fn main() {
         gauge!("example").set((seconds % (2.0 * PI)).sin());
         sleep(Duration::from_millis(100));
     }
+
+    println!("Done sending samples.");
 }
