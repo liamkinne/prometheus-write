@@ -10,7 +10,7 @@ fn main() {
     tracing_subscriber::fmt::init();
 
     Builder::new()
-        .tick_interval(Duration::from_millis(200))
+        .batch_interval(Duration::from_millis(200))
         .install()
         .unwrap();
 

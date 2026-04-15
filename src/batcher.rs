@@ -32,14 +32,14 @@ pub enum Command {
 #[derive(Debug, Clone)]
 pub struct Builder {
     endpoint: String,
-    tick_interval: Duration,
+    batch_interval: Duration,
 }
 
 impl Builder {
     pub fn new() -> Self {
         Self {
             endpoint: "http://localhost:9090/api/v1/write".to_owned(),
-            tick_interval: Duration::from_millis(100),
+            batch_interval: Duration::from_millis(100),
         }
     }
 
@@ -54,8 +54,8 @@ impl Builder {
     /// Change the interval between batch writes.
     ///
     /// Default is 0.1s.
-    pub fn tick_interval(mut self, interval: Duration) -> Self {
-        self.tick_interval = interval;
+    pub fn batch_interval(mut self, interval: Duration) -> Self {
+        self.batch_interval = interval;
         self
     }
 
@@ -63,7 +63,7 @@ impl Builder {
     pub fn install(self) -> Result<(), SetRecorderError<Batcher>> {
         let (tx_cmds, rx_cmd) = crossbeam::channel::unbounded();
 
-        std::thread::spawn(move || batch_worker(rx_cmd, self.endpoint, self.tick_interval));
+        std::thread::spawn(move || batch_worker(rx_cmd, self.endpoint, self.batch_interval));
 
         metrics::set_global_recorder(Batcher {
             inner: Arc::new(BatcherInner { tx_cmds }),
