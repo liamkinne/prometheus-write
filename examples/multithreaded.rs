@@ -1,5 +1,5 @@
 use metrics::counter;
-use metrics_exporter_prometheus_write::Builder;
+use metrics_exporter_prometheus_write::Batcher;
 use std::{
     thread::{self, sleep},
     time::Duration,
@@ -8,7 +8,7 @@ use std::{
 fn main() {
     tracing_subscriber::fmt::init();
 
-    Builder::new()
+    Batcher::builder()
         .batch_interval(Duration::from_millis(100))
         .install()
         .unwrap();

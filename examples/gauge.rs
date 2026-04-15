@@ -1,5 +1,5 @@
 use metrics::gauge;
-use metrics_exporter_prometheus_write::Builder;
+use metrics_exporter_prometheus_write::Batcher;
 use std::{
     f64::consts::PI,
     thread::sleep,
@@ -9,7 +9,7 @@ use std::{
 fn main() {
     tracing_subscriber::fmt::init();
 
-    Builder::new()
+    Batcher::builder()
         .batch_interval(Duration::from_millis(200))
         .install()
         .unwrap();

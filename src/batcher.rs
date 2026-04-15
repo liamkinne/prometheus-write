@@ -36,7 +36,7 @@ pub struct Builder {
 }
 
 impl Builder {
-    pub fn new() -> Self {
+    fn new() -> Self {
         Self {
             endpoint: "http://localhost:9090/api/v1/write".to_owned(),
             batch_interval: Duration::from_millis(100),
@@ -71,18 +71,13 @@ impl Builder {
     }
 }
 
-impl Default for Builder {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
 /// Batch sample sender.
 pub struct Batcher {
     inner: Arc<BatcherInner>,
 }
 
 impl Batcher {
+    /// See [`Builder`].
     pub fn builder() -> Builder {
         Builder::new()
     }
