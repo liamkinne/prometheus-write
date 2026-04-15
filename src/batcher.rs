@@ -9,6 +9,8 @@ use std::{
     sync::Arc,
     time::{Duration, SystemTime},
 };
+use tracing::debug;
+use tracing::error;
 
 #[derive(Debug)]
 pub enum MetricOperation {
@@ -185,7 +187,7 @@ impl BatcherInner {
     /// Send a command to the worker thread.
     pub fn send(&self, command: Command) {
         if let Err(err) = self.tx_cmds.send(command) {
-            log::error!("Failed to send: {}", err);
+            error!("Failed to send: {}", err);
         }
     }
 }
@@ -257,7 +259,7 @@ fn batch_worker(rx_cmd: Receiver<Command>, endpoint: String, interval: Duration)
             match snap::raw::Encoder::new().compress_vec(&write_request.encode_to_vec()) {
                 Ok(c) => c,
                 Err(err) => {
-                    log::error!("Compression failed: {err:?}");
+                    error!("Compression failed: {err:?}");
                     return;
                 }
             };
@@ -275,14 +277,14 @@ fn batch_worker(rx_cmd: Receiver<Command>, endpoint: String, interval: Duration)
         {
             Ok(mut response) => {
                 if response.status().is_client_error() {
-                    log::error!(
+                    error!(
                         "Prometheus returned a client error: {:?}",
                         response.body_mut().read_to_string()
                     );
                 }
 
                 if response.status().is_server_error() {
-                    log::error!(
+                    error!(
                         "Prometheus returned a server error: {:?}",
                         response.body_mut().read_to_string()
                     );
@@ -293,7 +295,7 @@ fn batch_worker(rx_cmd: Receiver<Command>, endpoint: String, interval: Duration)
                 }
             }
             Err(err) => {
-                log::error!("Request failed: {err:?}");
+                error!("Request failed: {err:?}");
             }
         };
     }
@@ -320,10 +322,10 @@ fn batch_worker(rx_cmd: Receiver<Command>, endpoint: String, interval: Duration)
                         },
                     }
                     Ok(Command::Metadata(_, _, _, _)) => {
-                        log::debug!("metadata not yet implemented");
+                        debug!("metadata not yet implemented");
                     },
                     Err(err) => {
-                        log::error!("{}", err);
+                        error!("{}", err);
                     },
                 };
             },
