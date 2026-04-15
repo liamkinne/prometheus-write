@@ -21,6 +21,7 @@ pub enum MetricOperation {
 
 #[derive(Debug)]
 pub enum Command {
+    #[allow(dead_code)]
     Metadata(KeyName, MetricType, Option<Unit>, SharedString),
     Operation(SystemTime, Key, MetricOperation),
 }
@@ -85,7 +86,7 @@ impl Batcher {
     }
 
     /// Send a command to the worker thread.
-    pub fn send(&self, command: Command) {
+    fn send(&self, command: Command) {
         self.inner.send(command);
     }
 }
