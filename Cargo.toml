@@ -1,7 +1,9 @@
 [package]
 name = "metrics-exporter-prometheus-write"
+description = "Prometheus remote write metrics exporter"
 version = "0.1.0"
 edition = "2024"
+license = "MPL-2.0"
 
 [dependencies]
 crossbeam = "0.8.4"
