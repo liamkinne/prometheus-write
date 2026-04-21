@@ -1,10 +1,10 @@
 use metrics::gauge;
 use metrics_exporter_prometheus_write::Batcher;
-use std::{
-    f64::consts::PI,
-    thread::sleep,
-    time::{Duration, SystemTime, UNIX_EPOCH},
-};
+use std::f64::consts::PI;
+use std::thread::sleep;
+use std::time::Duration;
+use std::time::SystemTime;
+use std::time::UNIX_EPOCH;
 
 fn main() {
     tracing_subscriber::fmt::init();

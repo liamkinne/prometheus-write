@@ -1,6 +1,7 @@
 use metrics::counter;
 use metrics_exporter_prometheus_write::Batcher;
-use std::{thread::sleep, time::Duration};
+use std::thread::sleep;
+use std::time::Duration;
 
 fn main() {
     tracing_subscriber::fmt::init();

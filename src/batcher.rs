@@ -1,16 +1,21 @@
-use crate::{
-    registry::Registry,
-    types::{self, metric_metadata::MetricType},
-};
-use crossbeam::channel::{Receiver, Sender, select};
-use metrics::{Key, KeyName, Recorder, SetRecorderError, SharedString, Unit};
+use crate::registry::Registry;
+use crate::types;
+use crossbeam::channel::Receiver;
+use crossbeam::channel::Sender;
+use crossbeam::channel::select;
+use metrics::Key;
+use metrics::KeyName;
+use metrics::Recorder;
+use metrics::SetRecorderError;
+use metrics::SharedString;
+use metrics::Unit;
 use prost::Message;
-use std::{
-    sync::Arc,
-    time::{Duration, SystemTime},
-};
+use std::sync::Arc;
+use std::time::Duration;
+use std::time::SystemTime;
 use tracing::debug;
 use tracing::error;
+use types::metric_metadata::MetricType;
 
 #[derive(Debug)]
 pub enum MetricOperation {

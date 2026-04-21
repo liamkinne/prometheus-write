@@ -1,9 +1,8 @@
 use crate::types;
 use metrics::Key;
-use std::{
-    collections::BTreeMap,
-    time::{SystemTime, UNIX_EPOCH},
-};
+use std::collections::BTreeMap;
+use std::time::SystemTime;
+use std::time::UNIX_EPOCH;
 
 #[derive(Debug)]
 pub struct Samples {
