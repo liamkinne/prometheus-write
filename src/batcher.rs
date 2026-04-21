@@ -244,6 +244,11 @@ fn batch_worker(rx_cmd: Receiver<Command>, endpoint: String, interval: Duration)
             })
         }
 
+        if timeseries.is_empty() {
+            debug!("no new samples. skipping send");
+            return;
+        }
+
         let write_request = types::WriteRequest {
             timeseries,
             // doesn't do anything in v.0.1.0 protocol
