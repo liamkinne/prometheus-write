@@ -184,6 +184,7 @@ fn timestamp_millis(timestamp: SystemTime) -> i64 {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::time::Duration;
 
     #[test]
     fn sample_duplicate() {
@@ -254,5 +255,17 @@ mod tests {
         });
         assert_eq!(samples.all()[1].value, 3.0);
         assert_eq!(samples.all()[1].timestamp, 200);
+    }
+
+    #[test]
+    fn timestamp_conversion() {
+        let time = SystemTime::now();
+        let ts_a = timestamp_millis(time);
+        assert!(ts_a > 0);
+        let ts_b = timestamp_millis(time);
+        assert_eq!(ts_a, ts_b);
+        let delta = Duration::from_millis(100);
+        let ts_c = timestamp_millis(time - delta);
+        assert_eq!(ts_c, ts_a - delta.as_millis() as i64);
     }
 }
