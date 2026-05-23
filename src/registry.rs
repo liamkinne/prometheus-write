@@ -258,6 +258,52 @@ mod tests {
     }
 
     #[test]
+    fn registry_counter_increment_duplicate_sample() {
+        let mut registry = Registry::new();
+
+        let time = SystemTime::now();
+        let key = Key::from_name("test");
+
+        assert!(registry.counters.is_empty());
+        assert!(registry.gauges.is_empty());
+
+        // first sample
+        registry.counter_increment(time, key.clone(), 50);
+        assert_eq!(registry.counters.len(), 1);
+        assert_eq!(registry.counters.get(&key).unwrap().samples[0].value, 50.0);
+        assert!(registry.gauges.is_empty());
+
+        // duplicate sample
+        registry.counter_increment(time, key.clone(), 100);
+        assert_eq!(registry.counters.len(), 1);
+        assert_eq!(registry.counters.get(&key).unwrap().samples[0].value, 150.0);
+        assert!(registry.gauges.is_empty());
+    }
+
+    #[test]
+    fn registry_counter_set_duplicate_sample() {
+        let mut registry = Registry::new();
+
+        let time = SystemTime::now();
+        let key = Key::from_name("test");
+
+        assert!(registry.counters.is_empty());
+        assert!(registry.gauges.is_empty());
+
+        // first sample
+        registry.counter_set(time, key.clone(), 50);
+        assert_eq!(registry.counters.len(), 1);
+        assert_eq!(registry.counters.get(&key).unwrap().samples[0].value, 50.0);
+        assert!(registry.gauges.is_empty());
+
+        // duplicate sample
+        registry.counter_set(time, key.clone(), 100);
+        assert_eq!(registry.counters.len(), 1);
+        assert_eq!(registry.counters.get(&key).unwrap().samples[0].value, 100.0);
+        assert!(registry.gauges.is_empty());
+    }
+
+    #[test]
     fn timestamp_conversion() {
         let time = SystemTime::now();
         let ts_a = timestamp_millis(time);
