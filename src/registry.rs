@@ -175,7 +175,7 @@ impl Registry {
         }
     }
 
-    pub fn into_timeseries(&self) -> Vec<types::TimeSeries> {
+    pub fn as_timeseries(&self) -> Vec<types::TimeSeries> {
         let mut timeseries = vec![];
 
         for (key, samples) in &self.counters {
@@ -432,23 +432,23 @@ mod tests {
     fn registry_into_prometheus_timeseries() {
         let mut registry = Registry::new();
 
-        assert!(registry.into_timeseries().is_empty());
+        assert!(registry.as_timeseries().is_empty());
 
         let time = SystemTime::now();
         let key = Key::from_name("test");
         registry.gauge_set(time, key.clone(), 50.0);
 
-        assert_eq!(registry.into_timeseries().len(), 1);
-        assert!(registry.into_timeseries()[0].exemplars.is_empty());
-        assert_eq!(registry.into_timeseries()[0].labels.len(), 1);
-        assert_eq!(registry.into_timeseries()[0].labels[0].name, "__name__");
-        assert_eq!(registry.into_timeseries()[0].labels[0].value, "test");
-        assert_eq!(registry.into_timeseries()[0].samples.len(), 1);
+        assert_eq!(registry.as_timeseries().len(), 1);
+        assert!(registry.as_timeseries()[0].exemplars.is_empty());
+        assert_eq!(registry.as_timeseries()[0].labels.len(), 1);
+        assert_eq!(registry.as_timeseries()[0].labels[0].name, "__name__");
+        assert_eq!(registry.as_timeseries()[0].labels[0].value, "test");
+        assert_eq!(registry.as_timeseries()[0].samples.len(), 1);
         assert_eq!(
-            registry.into_timeseries()[0].samples[0].timestamp,
+            registry.as_timeseries()[0].samples[0].timestamp,
             timestamp_millis(time)
         );
-        assert_eq!(registry.into_timeseries()[0].samples[0].value, 50.0);
+        assert_eq!(registry.as_timeseries()[0].samples[0].value, 50.0);
     }
 
     #[test]

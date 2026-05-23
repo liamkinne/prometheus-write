@@ -215,11 +215,11 @@ fn batch_worker(
     interval: Duration,
     write_timeout: Duration,
 ) {
-    let rx_tick = crossbeam::channel::tick(interval);
+    let rx_tick = crossbeam_channel::tick(interval);
     let mut registry = Registry::new();
 
     fn write(registry: &mut Registry, endpoint: &str, write_timeout: Duration) {
-        let timeseries = registry.into_timeseries();
+        let timeseries = registry.as_timeseries();
 
         if timeseries.is_empty() {
             debug!("no new samples. skipping send");
