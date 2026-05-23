@@ -38,6 +38,7 @@ pub enum Command {
 pub struct Builder {
     endpoint: String,
     batch_interval: Duration,
+    write_timeout: Duration,
 }
 
 impl Builder {
@@ -45,6 +46,7 @@ impl Builder {
         Self {
             endpoint: "http://localhost:9090/api/v1/write".to_owned(),
             batch_interval: Duration::from_millis(100),
+            write_timeout: Duration::from_millis(100),
         }
     }
 
@@ -64,11 +66,26 @@ impl Builder {
         self
     }
 
+    /// Set the timeout for each remote write HTTP request.
+    ///
+    /// Default is 100ms.
+    pub fn write_timeout(mut self, timeout: Duration) -> Self {
+        self.write_timeout = timeout;
+        self
+    }
+
     /// Set the global recorder
     pub fn install(self) -> Result<(), SetRecorderError<Batcher>> {
         let (tx_cmds, rx_cmd) = crossbeam::channel::unbounded();
 
-        std::thread::spawn(move || batch_worker(rx_cmd, self.endpoint, self.batch_interval));
+        std::thread::spawn(move || {
+            batch_worker(
+                rx_cmd,
+                self.endpoint,
+                self.batch_interval,
+                self.write_timeout,
+            )
+        });
 
         metrics::set_global_recorder(Batcher {
             inner: Arc::new(BatcherInner { tx_cmds }),
@@ -192,11 +209,16 @@ impl BatcherInner {
     }
 }
 
-fn batch_worker(rx_cmd: Receiver<Command>, endpoint: String, interval: Duration) {
+fn batch_worker(
+    rx_cmd: Receiver<Command>,
+    endpoint: String,
+    interval: Duration,
+    write_timeout: Duration,
+) {
     let rx_tick = crossbeam::channel::tick(interval);
     let mut registry = Registry::new();
 
-    fn write(registry: &mut Registry, endpoint: &str) {
+    fn write(registry: &mut Registry, endpoint: &str, write_timeout: Duration) {
         let mut timeseries = vec![];
 
         for (key, samples) in &registry.counters {
@@ -272,7 +294,7 @@ fn batch_worker(rx_cmd: Receiver<Command>, endpoint: String, interval: Duration)
         match ureq::post(endpoint)
             .config()
             .http_status_as_error(false)
-            .timeout_global(Some(Duration::from_millis(100)))
+            .timeout_global(Some(write_timeout))
             .build()
             .content_type("application/x-protobuf")
             .header("Content-Encoding", "snappy")
@@ -335,7 +357,7 @@ fn batch_worker(rx_cmd: Receiver<Command>, endpoint: String, interval: Duration)
                 };
             },
             recv(rx_tick) -> _ => {
-                write(&mut registry, &endpoint);
+                write(&mut registry, &endpoint, write_timeout);
             },
         }
     }
