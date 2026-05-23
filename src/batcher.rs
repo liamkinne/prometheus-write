@@ -219,57 +219,7 @@ fn batch_worker(
     let mut registry = Registry::new();
 
     fn write(registry: &mut Registry, endpoint: &str, write_timeout: Duration) {
-        let mut timeseries = vec![];
-
-        for (key, samples) in &registry.counters {
-            // skip if this metric has already been sent
-            if samples.is_sent() {
-                continue;
-            }
-
-            let mut labels = vec![types::Label {
-                name: "__name__".to_owned(),
-                value: key.name().to_owned(),
-            }];
-
-            for label in key.labels() {
-                labels.push(types::Label {
-                    name: label.key().to_string(),
-                    value: label.value().to_string(),
-                })
-            }
-
-            timeseries.push(types::TimeSeries {
-                labels,
-                samples: samples.all().clone(),
-                exemplars: vec![],
-            })
-        }
-
-        for (key, samples) in &registry.gauges {
-            // skip if this metric has already been sent
-            if samples.is_sent() {
-                continue;
-            }
-
-            let mut labels = vec![types::Label {
-                name: "__name__".to_owned(),
-                value: key.name().to_owned(),
-            }];
-
-            for label in key.labels() {
-                labels.push(types::Label {
-                    name: label.key().to_string(),
-                    value: label.value().to_string(),
-                })
-            }
-
-            timeseries.push(types::TimeSeries {
-                labels,
-                samples: samples.all().clone(),
-                exemplars: vec![],
-            })
-        }
+        let timeseries = registry.into_timeseries();
 
         if timeseries.is_empty() {
             debug!("no new samples. skipping send");

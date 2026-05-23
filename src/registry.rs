@@ -174,6 +174,62 @@ impl Registry {
             self.gauges.insert(key, Samples::new(sample));
         }
     }
+
+    pub fn into_timeseries(&self) -> Vec<types::TimeSeries> {
+        let mut timeseries = vec![];
+
+        for (key, samples) in &self.counters {
+            // skip if this metric has already been sent
+            if samples.is_sent() {
+                continue;
+            }
+
+            let mut labels = vec![types::Label {
+                name: "__name__".to_owned(),
+                value: key.name().to_owned(),
+            }];
+
+            for label in key.labels() {
+                labels.push(types::Label {
+                    name: label.key().to_string(),
+                    value: label.value().to_string(),
+                })
+            }
+
+            timeseries.push(types::TimeSeries {
+                labels,
+                samples: samples.all().clone(),
+                exemplars: vec![],
+            })
+        }
+
+        for (key, samples) in &self.gauges {
+            // skip if this metric has already been sent
+            if samples.is_sent() {
+                continue;
+            }
+
+            let mut labels = vec![types::Label {
+                name: "__name__".to_owned(),
+                value: key.name().to_owned(),
+            }];
+
+            for label in key.labels() {
+                labels.push(types::Label {
+                    name: label.key().to_string(),
+                    value: label.value().to_string(),
+                })
+            }
+
+            timeseries.push(types::TimeSeries {
+                labels,
+                samples: samples.all().clone(),
+                exemplars: vec![],
+            })
+        }
+
+        timeseries
+    }
 }
 
 fn timestamp_millis(timestamp: SystemTime) -> i64 {
@@ -370,6 +426,29 @@ mod tests {
         assert!(registry.counters.is_empty());
         assert_eq!(registry.gauges.len(), 1);
         assert_eq!(registry.gauges.get(&key).unwrap().samples[0].value, -150.0);
+    }
+
+    #[test]
+    fn registry_into_prometheus_timeseries() {
+        let mut registry = Registry::new();
+
+        assert!(registry.into_timeseries().is_empty());
+
+        let time = SystemTime::now();
+        let key = Key::from_name("test");
+        registry.gauge_set(time, key.clone(), 50.0);
+
+        assert_eq!(registry.into_timeseries().len(), 1);
+        assert!(registry.into_timeseries()[0].exemplars.is_empty());
+        assert_eq!(registry.into_timeseries()[0].labels.len(), 1);
+        assert_eq!(registry.into_timeseries()[0].labels[0].name, "__name__");
+        assert_eq!(registry.into_timeseries()[0].labels[0].value, "test");
+        assert_eq!(registry.into_timeseries()[0].samples.len(), 1);
+        assert_eq!(
+            registry.into_timeseries()[0].samples[0].timestamp,
+            timestamp_millis(time)
+        );
+        assert_eq!(registry.into_timeseries()[0].samples[0].value, 50.0);
     }
 
     #[test]
