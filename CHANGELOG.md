@@ -3,6 +3,7 @@
 ## [unreleased]
 
 - Add configuration for timeout of write requests.
+- Mark registry as sent on client errors.
 
 # v0.1.1
 

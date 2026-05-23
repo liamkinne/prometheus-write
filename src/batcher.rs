@@ -308,6 +308,9 @@ fn batch_worker(
                         "Prometheus returned a client error: {:?}",
                         response.body_mut().read_to_string()
                     );
+                    // mark as sent any way to try avoid persistent
+                    // unrecoverable errors.
+                    registry.sent();
                 }
 
                 if response.status().is_server_error() {
