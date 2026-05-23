@@ -304,6 +304,75 @@ mod tests {
     }
 
     #[test]
+    fn registry_gauge_increment_duplicate_sample() {
+        let mut registry = Registry::new();
+
+        let time = SystemTime::now();
+        let key = Key::from_name("test");
+
+        assert!(registry.counters.is_empty());
+        assert!(registry.gauges.is_empty());
+
+        // first sample
+        registry.gauge_increment(time, key.clone(), 50.0);
+        assert!(registry.counters.is_empty());
+        assert_eq!(registry.gauges.len(), 1);
+        assert_eq!(registry.gauges.get(&key).unwrap().samples[0].value, 50.0);
+
+        // duplicate sample
+        registry.gauge_increment(time, key.clone(), 100.0);
+        assert!(registry.counters.is_empty());
+        assert_eq!(registry.gauges.len(), 1);
+        assert_eq!(registry.gauges.get(&key).unwrap().samples[0].value, 150.0);
+    }
+
+    #[test]
+    fn registry_gauge_set_duplicate_sample() {
+        let mut registry = Registry::new();
+
+        let time = SystemTime::now();
+        let key = Key::from_name("test");
+
+        assert!(registry.counters.is_empty());
+        assert!(registry.gauges.is_empty());
+
+        // first sample
+        registry.gauge_set(time, key.clone(), 50.0);
+        assert!(registry.counters.is_empty());
+        assert_eq!(registry.gauges.len(), 1);
+        assert_eq!(registry.gauges.get(&key).unwrap().samples[0].value, 50.0);
+
+        // duplicate sample
+        registry.gauge_set(time, key.clone(), 100.0);
+        assert!(registry.counters.is_empty());
+        assert_eq!(registry.gauges.len(), 1);
+        assert_eq!(registry.gauges.get(&key).unwrap().samples[0].value, 100.0);
+    }
+
+    #[test]
+    fn registry_gauge_decrement_duplicate_sample() {
+        let mut registry = Registry::new();
+
+        let time = SystemTime::now();
+        let key = Key::from_name("test");
+
+        assert!(registry.counters.is_empty());
+        assert!(registry.gauges.is_empty());
+
+        // first sample
+        registry.gauge_decrement(time, key.clone(), 50.0);
+        assert!(registry.counters.is_empty());
+        assert_eq!(registry.gauges.len(), 1);
+        assert_eq!(registry.gauges.get(&key).unwrap().samples[0].value, -50.0);
+
+        // duplicate sample
+        registry.gauge_decrement(time, key.clone(), 100.0);
+        assert!(registry.counters.is_empty());
+        assert_eq!(registry.gauges.len(), 1);
+        assert_eq!(registry.gauges.get(&key).unwrap().samples[0].value, -150.0);
+    }
+
+    #[test]
     fn timestamp_conversion() {
         let time = SystemTime::now();
         let ts_a = timestamp_millis(time);
