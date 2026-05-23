@@ -1,8 +1,8 @@
 use crate::registry::Registry;
 use crate::types;
-use crossbeam::channel::Receiver;
-use crossbeam::channel::Sender;
-use crossbeam::channel::select;
+use crossbeam_channel::Receiver;
+use crossbeam_channel::Sender;
+use crossbeam_channel::select;
 use metrics::Key;
 use metrics::KeyName;
 use metrics::Recorder;
@@ -76,7 +76,7 @@ impl Builder {
 
     /// Set the global recorder
     pub fn install(self) -> Result<(), SetRecorderError<Batcher>> {
-        let (tx_cmds, rx_cmd) = crossbeam::channel::unbounded();
+        let (tx_cmds, rx_cmd) = crossbeam_channel::unbounded();
 
         std::thread::spawn(move || {
             batch_worker(

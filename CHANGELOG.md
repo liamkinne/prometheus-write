@@ -2,6 +2,8 @@
 
 ## [unreleased]
 
+- Replace `crossbeam` with `crossbeam-channel` for newer version.
+
 ## v0.1.2
 
 - Add configuration for timeout of write requests.
