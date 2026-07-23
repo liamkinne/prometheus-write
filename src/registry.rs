@@ -6,87 +6,120 @@ use std::time::UNIX_EPOCH;
 
 #[derive(Debug)]
 pub struct Samples {
-    sent: bool,
-    samples: Vec<types::Sample>,
+    /// The last sample that was sent, kept as the basis for future
+    /// increments/sets even after `pending` has been drained by a send.
+    last_sent: Option<types::Sample>,
+    /// Samples that have not yet been sent.
+    pending: Vec<types::Sample>,
 }
 
 impl Samples {
     /// Create a new sample stream.
     pub fn new(sample: types::Sample) -> Self {
         Self {
-            sent: false,
-            samples: vec![sample],
+            last_sent: None,
+            pending: vec![sample],
         }
     }
 
+    #[cfg(test)]
     pub fn all(&self) -> &Vec<types::Sample> {
-        &self.samples
+        &self.pending
+    }
+
+    /// The most recent known sample, whether pending or already sent. This
+    /// is the basis used for future `increment`/`set` calls.
+    fn last(&self) -> Option<&types::Sample> {
+        self.pending.last().or(self.last_sent.as_ref())
     }
 
     /// Increment, adding to the previous value.
     pub fn increment(&mut self, sample: types::Sample) {
-        if let Some(last) = self.samples.last_mut() {
-            let current = last.value;
+        let last = self.last().copied();
 
-            if sample.timestamp <= last.timestamp {
-                // increment old value
-                last.value += sample.value;
-            } else {
-                // the existing sample has already been sent
-                if self.sent {
-                    self.samples.clear();
+        match last {
+            Some(last) if sample.timestamp <= last.timestamp => {
+                if let Some(pending) = self.pending.last_mut() {
+                    pending.value += sample.value;
+                } else {
+                    // the current base value has already been sent, so we
+                    // need a new pending entry to carry the increment.
+                    self.pending.push(types::Sample {
+                        value: last.value + sample.value,
+                        timestamp: last.timestamp,
+                    });
                 }
-
-                self.samples.push(types::Sample {
-                    value: sample.value + current,
+            }
+            Some(last) => {
+                self.pending.push(types::Sample {
+                    value: last.value + sample.value,
                     timestamp: sample.timestamp,
                 });
-                self.sent = false;
             }
-        } else {
-            self.sent = false;
-            self.samples.push(sample);
+            None => {
+                self.pending.push(sample);
+            }
         }
     }
 
     /// Set the new or next sample.
     pub fn set(&mut self, sample: types::Sample) {
-        if let Some(last) = self.samples.last_mut() {
-            if sample.timestamp == last.timestamp {
-                // assign new value
-                last.value = sample.value
-            } else if sample.timestamp > last.timestamp {
-                // the existing sample has already been sent
-                if self.sent {
-                    self.samples.clear();
+        let last = self.last().copied();
+
+        match last {
+            Some(last) if sample.timestamp == last.timestamp => {
+                if let Some(pending) = self.pending.last_mut() {
+                    pending.value = sample.value;
+                } else {
+                    // the current base value has already been sent, so we
+                    // need a new pending entry to overwrite it.
+                    self.pending.push(sample);
                 }
-
-                self.samples.push(types::Sample {
-                    value: sample.value,
-                    timestamp: sample.timestamp,
-                });
-                self.sent = false;
             }
-        } else {
-            self.sent = false;
-            self.samples.push(sample);
+            Some(last) if sample.timestamp > last.timestamp => {
+                self.pending.push(sample);
+            }
+            Some(_) => {
+                // older than the current value, ignore.
+            }
+            None => {
+                self.pending.push(sample);
+            }
         }
     }
 
-    /// Has this sample been sent already.
-    pub fn is_sent(&self) -> bool {
-        self.sent
+    /// Whether there are any samples ready to be sent, given a cutoff
+    /// timestamp (inclusive). Samples newer than the cutoff are not
+    /// considered ready.
+    pub fn is_ready(&self, cutoff: i64) -> bool {
+        self.pending.iter().any(|sample| sample.timestamp <= cutoff)
     }
 
-    /// Remove all elements except the last.
-    pub fn sent(&mut self) {
-        self.sent = true;
+    /// The samples ready to be sent, given a cutoff timestamp (inclusive).
+    /// Samples newer than the cutoff are left pending.
+    pub fn ready(&self, cutoff: i64) -> Vec<types::Sample> {
+        self.pending
+            .iter()
+            .filter(|sample| sample.timestamp <= cutoff)
+            .copied()
+            .collect()
+    }
 
-        let last = self.samples.last().copied();
-        self.samples.clear();
-        if let Some(last) = last {
-            self.samples.push(last);
+    /// Mark samples up to and including the cutoff timestamp as sent,
+    /// removing them from `pending` while retaining the last one as the
+    /// base for future increments/sets. Samples newer than the cutoff are
+    /// left untouched.
+    pub fn sent(&mut self, cutoff: i64) {
+        let boundary = self
+            .pending
+            .partition_point(|sample| sample.timestamp <= cutoff);
+
+        if boundary == 0 {
+            return;
         }
+
+        let sent = self.pending.drain(..boundary);
+        self.last_sent = sent.last();
     }
 }
 
@@ -103,14 +136,14 @@ impl Registry {
         }
     }
 
-    /// Mark samples as sent.
-    pub fn sent(&mut self) {
+    /// Mark samples up to and including the cutoff timestamp as sent.
+    pub fn sent(&mut self, cutoff: i64) {
         for samples in self.counters.values_mut() {
-            samples.sent();
+            samples.sent(cutoff);
         }
 
         for samples in self.gauges.values_mut() {
-            samples.sent();
+            samples.sent(cutoff);
         }
     }
 
@@ -175,12 +208,14 @@ impl Registry {
         }
     }
 
-    pub fn as_timeseries(&self) -> Vec<types::TimeSeries> {
+    /// Build the timeseries ready to be sent, given a cutoff timestamp
+    /// (inclusive, in milliseconds since the Unix epoch). Samples newer
+    /// than the cutoff are excluded and left pending for a future batch.
+    pub fn as_timeseries(&self, cutoff: i64) -> Vec<types::TimeSeries> {
         let mut timeseries = vec![];
 
         for (key, samples) in &self.counters {
-            // skip if this metric has already been sent
-            if samples.is_sent() {
+            if !samples.is_ready(cutoff) {
                 continue;
             }
 
@@ -198,14 +233,13 @@ impl Registry {
 
             timeseries.push(types::TimeSeries {
                 labels,
-                samples: samples.all().clone(),
+                samples: samples.ready(cutoff),
                 exemplars: vec![],
             })
         }
 
         for (key, samples) in &self.gauges {
-            // skip if this metric has already been sent
-            if samples.is_sent() {
+            if !samples.is_ready(cutoff) {
                 continue;
             }
 
@@ -223,7 +257,7 @@ impl Registry {
 
             timeseries.push(types::TimeSeries {
                 labels,
-                samples: samples.all().clone(),
+                samples: samples.ready(cutoff),
                 exemplars: vec![],
             })
         }
@@ -232,7 +266,7 @@ impl Registry {
     }
 }
 
-fn timestamp_millis(timestamp: SystemTime) -> i64 {
+pub(crate) fn timestamp_millis(timestamp: SystemTime) -> i64 {
     // todo: dont use SystemTime as we can't then set custom timestamps.
     timestamp.duration_since(UNIX_EPOCH).unwrap().as_millis() as i64
 }
@@ -314,6 +348,43 @@ mod tests {
     }
 
     #[test]
+    fn sample_sent_respects_cutoff() {
+        let mut samples = Samples::new(types::Sample {
+            value: 1.0,
+            timestamp: 100,
+        });
+
+        samples.increment(types::Sample {
+            value: 1.0,
+            timestamp: 200,
+        });
+        samples.increment(types::Sample {
+            value: 1.0,
+            timestamp: 300,
+        });
+        assert_eq!(samples.all().len(), 3);
+
+        // only samples at or before the cutoff should be cleared.
+        samples.sent(200);
+        assert_eq!(samples.all().len(), 1);
+        assert_eq!(samples.all()[0].timestamp, 300);
+        assert_eq!(samples.all()[0].value, 3.0);
+
+        // a further increment using the sent value as a base should still
+        // work correctly.
+        samples.sent(300);
+        assert!(samples.all().is_empty());
+
+        samples.increment(types::Sample {
+            value: 1.0,
+            timestamp: 400,
+        });
+        assert_eq!(samples.all().len(), 1);
+        assert_eq!(samples.all()[0].value, 4.0);
+        assert_eq!(samples.all()[0].timestamp, 400);
+    }
+
+    #[test]
     fn registry_counter_increment_duplicate_sample() {
         let mut registry = Registry::new();
 
@@ -326,13 +397,13 @@ mod tests {
         // first sample
         registry.counter_increment(time, key.clone(), 50);
         assert_eq!(registry.counters.len(), 1);
-        assert_eq!(registry.counters.get(&key).unwrap().samples[0].value, 50.0);
+        assert_eq!(registry.counters.get(&key).unwrap().all()[0].value, 50.0);
         assert!(registry.gauges.is_empty());
 
         // duplicate sample
         registry.counter_increment(time, key.clone(), 100);
         assert_eq!(registry.counters.len(), 1);
-        assert_eq!(registry.counters.get(&key).unwrap().samples[0].value, 150.0);
+        assert_eq!(registry.counters.get(&key).unwrap().all()[0].value, 150.0);
         assert!(registry.gauges.is_empty());
     }
 
@@ -349,13 +420,13 @@ mod tests {
         // first sample
         registry.counter_set(time, key.clone(), 50);
         assert_eq!(registry.counters.len(), 1);
-        assert_eq!(registry.counters.get(&key).unwrap().samples[0].value, 50.0);
+        assert_eq!(registry.counters.get(&key).unwrap().all()[0].value, 50.0);
         assert!(registry.gauges.is_empty());
 
         // duplicate sample
         registry.counter_set(time, key.clone(), 100);
         assert_eq!(registry.counters.len(), 1);
-        assert_eq!(registry.counters.get(&key).unwrap().samples[0].value, 100.0);
+        assert_eq!(registry.counters.get(&key).unwrap().all()[0].value, 100.0);
         assert!(registry.gauges.is_empty());
     }
 
@@ -373,13 +444,13 @@ mod tests {
         registry.gauge_increment(time, key.clone(), 50.0);
         assert!(registry.counters.is_empty());
         assert_eq!(registry.gauges.len(), 1);
-        assert_eq!(registry.gauges.get(&key).unwrap().samples[0].value, 50.0);
+        assert_eq!(registry.gauges.get(&key).unwrap().all()[0].value, 50.0);
 
         // duplicate sample
         registry.gauge_increment(time, key.clone(), 100.0);
         assert!(registry.counters.is_empty());
         assert_eq!(registry.gauges.len(), 1);
-        assert_eq!(registry.gauges.get(&key).unwrap().samples[0].value, 150.0);
+        assert_eq!(registry.gauges.get(&key).unwrap().all()[0].value, 150.0);
     }
 
     #[test]
@@ -396,13 +467,13 @@ mod tests {
         registry.gauge_set(time, key.clone(), 50.0);
         assert!(registry.counters.is_empty());
         assert_eq!(registry.gauges.len(), 1);
-        assert_eq!(registry.gauges.get(&key).unwrap().samples[0].value, 50.0);
+        assert_eq!(registry.gauges.get(&key).unwrap().all()[0].value, 50.0);
 
         // duplicate sample
         registry.gauge_set(time, key.clone(), 100.0);
         assert!(registry.counters.is_empty());
         assert_eq!(registry.gauges.len(), 1);
-        assert_eq!(registry.gauges.get(&key).unwrap().samples[0].value, 100.0);
+        assert_eq!(registry.gauges.get(&key).unwrap().all()[0].value, 100.0);
     }
 
     #[test]
@@ -419,36 +490,56 @@ mod tests {
         registry.gauge_decrement(time, key.clone(), 50.0);
         assert!(registry.counters.is_empty());
         assert_eq!(registry.gauges.len(), 1);
-        assert_eq!(registry.gauges.get(&key).unwrap().samples[0].value, -50.0);
+        assert_eq!(registry.gauges.get(&key).unwrap().all()[0].value, -50.0);
 
         // duplicate sample
         registry.gauge_decrement(time, key.clone(), 100.0);
         assert!(registry.counters.is_empty());
         assert_eq!(registry.gauges.len(), 1);
-        assert_eq!(registry.gauges.get(&key).unwrap().samples[0].value, -150.0);
+        assert_eq!(registry.gauges.get(&key).unwrap().all()[0].value, -150.0);
     }
 
     #[test]
     fn registry_into_prometheus_timeseries() {
         let mut registry = Registry::new();
 
-        assert!(registry.as_timeseries().is_empty());
+        assert!(registry.as_timeseries(i64::MAX).is_empty());
 
         let time = SystemTime::now();
         let key = Key::from_name("test");
         registry.gauge_set(time, key.clone(), 50.0);
 
-        assert_eq!(registry.as_timeseries().len(), 1);
-        assert!(registry.as_timeseries()[0].exemplars.is_empty());
-        assert_eq!(registry.as_timeseries()[0].labels.len(), 1);
-        assert_eq!(registry.as_timeseries()[0].labels[0].name, "__name__");
-        assert_eq!(registry.as_timeseries()[0].labels[0].value, "test");
-        assert_eq!(registry.as_timeseries()[0].samples.len(), 1);
+        assert_eq!(registry.as_timeseries(i64::MAX).len(), 1);
+        assert!(registry.as_timeseries(i64::MAX)[0].exemplars.is_empty());
+        assert_eq!(registry.as_timeseries(i64::MAX)[0].labels.len(), 1);
         assert_eq!(
-            registry.as_timeseries()[0].samples[0].timestamp,
+            registry.as_timeseries(i64::MAX)[0].labels[0].name,
+            "__name__"
+        );
+        assert_eq!(registry.as_timeseries(i64::MAX)[0].labels[0].value, "test");
+        assert_eq!(registry.as_timeseries(i64::MAX)[0].samples.len(), 1);
+        assert_eq!(
+            registry.as_timeseries(i64::MAX)[0].samples[0].timestamp,
             timestamp_millis(time)
         );
-        assert_eq!(registry.as_timeseries()[0].samples[0].value, 50.0);
+        assert_eq!(registry.as_timeseries(i64::MAX)[0].samples[0].value, 50.0);
+    }
+
+    #[test]
+    fn registry_as_timeseries_respects_cutoff() {
+        let mut registry = Registry::new();
+
+        let time = SystemTime::now();
+        let key = Key::from_name("test");
+        registry.gauge_set(time, key.clone(), 50.0);
+
+        // a cutoff before the sample's timestamp should exclude it.
+        let cutoff = timestamp_millis(time) - 1;
+        assert!(registry.as_timeseries(cutoff).is_empty());
+
+        // a cutoff at or after the sample's timestamp should include it.
+        let cutoff = timestamp_millis(time);
+        assert_eq!(registry.as_timeseries(cutoff).len(), 1);
     }
 
     #[test]
