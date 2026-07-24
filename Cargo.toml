@@ -6,12 +6,12 @@ edition = "2024"
 license = "MPL-2.0"
 
 [dependencies]
-crossbeam-channel = "0.5.15"
-metrics = "0.24.2"
-prost = "0.13.5"
+crossbeam-channel = "0.5"
+metrics = "0.24"
+prost = "0.13"
 snap = "1.1.1"
 tracing = "0.1"
-ureq = "3.0.11"
+ureq = "3.0"
 
 [build-dependencies]
 prost-build = "0.13.5"
