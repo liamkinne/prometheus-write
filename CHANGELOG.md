@@ -3,6 +3,7 @@
 ## [unreleased]
 
 - Replace `crossbeam` with `crossbeam-channel` for newer version.
+- Add a grace period to writing to prevent out of order samples.
 
 ## v0.1.2
 

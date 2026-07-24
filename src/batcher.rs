@@ -1,4 +1,5 @@
 use crate::registry::Registry;
+use crate::registry::timestamp_millis;
 use crate::types;
 use crossbeam_channel::Receiver;
 use crossbeam_channel::Sender;
@@ -39,6 +40,7 @@ pub struct Builder {
     endpoint: String,
     batch_interval: Duration,
     write_timeout: Duration,
+    grace_period: Duration,
 }
 
 impl Builder {
@@ -47,6 +49,7 @@ impl Builder {
             endpoint: "http://localhost:9090/api/v1/write".to_owned(),
             batch_interval: Duration::from_millis(100),
             write_timeout: Duration::from_millis(100),
+            grace_period: Duration::from_millis(5),
         }
     }
 
@@ -74,6 +77,17 @@ impl Builder {
         self
     }
 
+    /// Set the grace period applied to each batch write.
+    ///
+    /// This prevents a out of order samples being written to Prometheus because
+    /// of a slow thread adding sample.
+    ///
+    /// Default is 5ms.
+    pub fn grace_period(mut self, grace_period: Duration) -> Self {
+        self.grace_period = grace_period;
+        self
+    }
+
     /// Set the global recorder
     pub fn install(self) -> Result<(), SetRecorderError<Batcher>> {
         let (tx_cmds, rx_cmd) = crossbeam_channel::unbounded();
@@ -84,6 +98,7 @@ impl Builder {
                 self.endpoint,
                 self.batch_interval,
                 self.write_timeout,
+                self.grace_period,
             )
         });
 
@@ -214,12 +229,42 @@ fn batch_worker(
     endpoint: String,
     interval: Duration,
     write_timeout: Duration,
+    grace_period: Duration,
 ) {
     let rx_tick = crossbeam_channel::tick(interval);
     let mut registry = Registry::new();
 
-    fn write(registry: &mut Registry, endpoint: &str, write_timeout: Duration) {
-        let timeseries = registry.as_timeseries();
+    /// Process a single command against the registry.
+    fn process(registry: &mut Registry, cmd: Command) {
+        match cmd {
+            Command::Operation(timestamp, key, op) => match op {
+                MetricOperation::IncrementCounter(value) => {
+                    registry.counter_increment(timestamp, key, value);
+                }
+                MetricOperation::SetCounter(value) => {
+                    registry.counter_set(timestamp, key, value);
+                }
+                MetricOperation::IncrementGauge(value) => {
+                    registry.gauge_increment(timestamp, key, value);
+                }
+                MetricOperation::DecrementGauge(value) => {
+                    registry.gauge_decrement(timestamp, key, value);
+                }
+                MetricOperation::SetGauge(value) => {
+                    registry.gauge_set(timestamp, key, value);
+                }
+            },
+            Command::Metadata(_, _, _, _) => {
+                debug!("metadata not yet implemented");
+            }
+        }
+    }
+
+    /// Write all samples timestamped at or before `cutoff` (in ms since the
+    /// Unix epoch). Samples newer than the cutoff are left pending in the
+    /// registry for a future batch.
+    fn write(registry: &mut Registry, endpoint: &str, write_timeout: Duration, cutoff: i64) {
+        let timeseries = registry.as_timeseries(cutoff);
 
         if timeseries.is_empty() {
             debug!("no new samples. skipping send");
@@ -260,7 +305,7 @@ fn batch_worker(
                     );
                     // mark as sent any way to try avoid persistent
                     // unrecoverable errors.
-                    registry.sent();
+                    registry.sent(cutoff);
                 }
 
                 if response.status().is_server_error() {
@@ -271,7 +316,7 @@ fn batch_worker(
                 }
 
                 if response.status().is_success() {
-                    registry.sent();
+                    registry.sent(cutoff);
                 }
             }
             Err(err) => {
@@ -284,33 +329,15 @@ fn batch_worker(
         select! {
             recv(rx_cmd) -> cmd => {
                 match cmd {
-                    Ok(Command::Operation(timestamp, key, op)) => match op {
-                        MetricOperation::IncrementCounter(value) => {
-                            registry.counter_increment(timestamp, key, value);
-                        },
-                        MetricOperation::SetCounter(value) => {
-                            registry.counter_set(timestamp, key, value);
-                        },
-                        MetricOperation::IncrementGauge(value) => {
-                            registry.gauge_increment(timestamp, key, value);
-                        },
-                        MetricOperation::DecrementGauge(value) => {
-                            registry.gauge_decrement(timestamp, key, value);
-                        },
-                        MetricOperation::SetGauge(value) => {
-                            registry.gauge_set(timestamp, key, value);
-                        },
-                    }
-                    Ok(Command::Metadata(_, _, _, _)) => {
-                        debug!("metadata not yet implemented");
-                    },
+                    Ok(cmd) => process(&mut registry, cmd),
                     Err(err) => {
                         error!("{}", err);
                     },
                 };
             },
             recv(rx_tick) -> _ => {
-                write(&mut registry, &endpoint, write_timeout);
+                let cutoff = timestamp_millis(SystemTime::now() - grace_period);
+                write(&mut registry, &endpoint, write_timeout, cutoff);
             },
         }
     }
