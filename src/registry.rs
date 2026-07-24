@@ -118,8 +118,8 @@ impl Samples {
             return;
         }
 
-        let sent = self.pending.drain(..boundary);
-        self.last_sent = sent.last();
+        let mut sent = self.pending.drain(..boundary);
+        self.last_sent = sent.next_back();
     }
 }
 
