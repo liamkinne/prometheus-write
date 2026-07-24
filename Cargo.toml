@@ -10,7 +10,7 @@ crossbeam-channel = "0.5"
 metrics = "0.24"
 prost = "0.13"
 snap = "1.1.1"
-tracing = "0.1"
+log = "0.4"
 ureq = "3.0"
 
 [build-dependencies]

@@ -4,6 +4,8 @@ use crate::types;
 use crossbeam_channel::Receiver;
 use crossbeam_channel::Sender;
 use crossbeam_channel::select;
+use log::debug;
+use log::error;
 use metrics::Key;
 use metrics::KeyName;
 use metrics::Recorder;
@@ -14,8 +16,6 @@ use prost::Message;
 use std::sync::Arc;
 use std::time::Duration;
 use std::time::SystemTime;
-use tracing::debug;
-use tracing::error;
 use types::metric_metadata::MetricType;
 
 #[derive(Debug)]
