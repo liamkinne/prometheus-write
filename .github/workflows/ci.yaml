@@ -35,6 +35,19 @@ jobs:
       - name: Run Clippy Lints
         run: cargo clippy --all-features -- -D warnings
 
+  tests:
+    name: Tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install protobuf compiler
+        run: sudo apt-get install protobuf-compiler
+      - name: Checkout
+        uses: actions/checkout@v6
+      - uses: Swatinem/rust-cache@v2
+        if: ${{ github.ref != 'refs/heads/main' }}
+      - name: Run unit tests
+        run: cargo test
+
   docs:
     name: Docs
     runs-on: ubuntu-latest
